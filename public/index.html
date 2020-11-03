@@ -1,17 +1,153 @@
 <!DOCTYPE html>
-<html lang="en">
-  <head>
+
+<head>
+    <title></title>
     <meta charset="utf-8">
-    <meta http-equiv="X-UA-Compatible" content="IE=edge">
-    <meta name="viewport" content="width=device-width,initial-scale=1.0">
-    <link rel="icon" href="<%= BASE_URL %>favicon.ico">
-    <title><%= htmlWebpackPlugin.options.title %></title>
-  </head>
-  <body>
-    <noscript>
-      <strong>We're sorry but <%= htmlWebpackPlugin.options.title %> doesn't work properly without JavaScript enabled. Please enable it to continue.</strong>
-    </noscript>
-    <div id="app"></div>
-    <!-- built files will be auto injected -->
-  </body>
-</html>
+    <script src="https://d3js.org/d3.v4.min.js"></script>
+    <script src="https://unpkg.com/vue"></script>
+    <style>
+        body {
+            width: 100%;
+            height: 100%;
+            font-family: Avenir, Helvetica, Arial, sans-serif;
+            font-size: 12px;
+        }
+
+        label {
+            display: block;
+        }
+
+        .links line {
+            stroke: #999;
+            stroke-opacity: 0.6;
+        }
+
+        .nodes circle {
+            stroke: #fff;
+            stroke-width: 1.5px;
+        }
+
+    </style>
+</head>
+
+<body>
+    <div id="app" >
+      
+        <svg id="svg" pointer-events="all" viewBox="0 0 1360 700" preserveAspectRatio="xMinYMin meet">
+          <g :id="links"></g>
+          <g :id="nodes">
+            <g :id="lables"></g>
+            <g :id="circles"></g>
+            <g :id="title"></g>
+          </g>
+      </svg>
+    </div>
+    <script type="text/javascript">
+    new Vue({
+             el: "#app",
+             data: function () {
+                return {
+                    graph: null,
+                    simulation: null,
+                    color: d3.scaleOrdinal(d3.schemeCategory20),
+                    svgWigth: 960,
+                    svgHeight: 600
+                    
+                };
+            },
+            mounted: function () {
+                let that = this;
+                d3.json("miserables.json", function (error, graph) {
+                    if (error) throw error;
+                    that.graph = graph;
+                    that.simulation = d3.forceSimulation(that.graph.nodes)
+                        .force("link", d3.forceLink().id(function(d) { return d.id; }))
+                        .force("charge", d3.forceManyBody())
+                        .force("center", d3.forceCenter(that.svgWigth / 2, that.svgHeight / 2));
+                });
+            },
+            computed: {
+                nodes: function () {
+                    let that = this;
+                    if (that.graph) {
+                        return d3.select("svg").append("g")
+                            .attr("class", "nodes")
+                            .selectAll("circle")
+                            .data(that.graph.nodes)
+                            .enter().append("g")  
+                    }
+                },
+                circles: function(){
+                  let that = this;
+                  if (that.graph){
+                    return that.nodes.append("circle")
+                            .attr("r", 5)
+                            .attr("fill", function(d) { return that.color(d.group); })
+
+                            .call(d3.drag()
+                                .on("start", function dragstarted(d) {
+                                    if (!d3.event.active) that.simulation.alphaTarget(0.3).restart();
+                                    d.fx = d.x;
+                                    d.fy = d.y;
+                                })
+                                .on("drag", function dragged(d) {
+                                    d.fx = d3.event.x;
+                                    d.fy = d3.event.y;
+                                })
+                                .on("end", function dragended(d) {
+                                    if (!d3.event.active) that.simulation.alphaTarget(0);
+                                    d.fx = null;
+                                    d.fy = null;
+                                }));
+                  }
+                },
+                lables: function(){
+                  let that = this;
+                    if (that.graph) {
+                      return that.nodes.append("text")
+                            .text(function(d) {
+                              return d.id;
+                            })
+                            .attr('x', 6)
+                            .attr('y', 3);
+                    }
+                },
+                title: function(){
+                  let that = this;
+                    if (that.graph) {
+                      return that.nodes.append("title")
+                      .text(function(d) { return d.id; });
+                    }
+                },
+                links: function () {
+                    let that = this;
+                    if (that.graph) {
+                        return d3.select("svg").append("g")
+                            .attr("class", "links")
+                            .selectAll("line")
+                            .data(that.graph.links)
+                            .enter().append("line")
+                            .attr("stroke-width", function (d) { return Math.sqrt(d.value); });
+                    }
+                },
+            },
+            updated: function () {
+                let that = this;
+                that.simulation.nodes(that.graph.nodes).on('tick', function ticked() {
+                    that.links
+                        .attr("x1", function (d) { return d.source.x; })
+                        .attr("y1", function (d) { return d.source.y; })
+                        .attr("x2", function (d) { return d.target.x; })
+                        .attr("y2", function (d) { return d.target.y; });
+
+                    that.nodes
+                        .attr("transform", function(d) {
+                            return "translate(" + d.x + "," + d.y + ")"; 
+                          })
+                });
+                that.simulation.force("link").links(that.graph.links);
+            }
+        });
+            
+    </script>
+</body>
